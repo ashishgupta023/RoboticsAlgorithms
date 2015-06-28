@@ -1,0 +1,150 @@
+#!/usr/bin/env python
+import roslib
+import rospy
+import tf
+from visualization_msgs.msg import Marker
+import math
+from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import PointCloud
+import random
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Point
+from laser_geometry import LaserProjection
+
+from nav_msgs.msg import Odometry
+
+class Perception:
+ 	def __init__(self):
+		self.msg = Marker()
+		self.model = []
+		self.modelPoint1 = 0
+		self.modelPoint2 = 0
+		rospy.init_node('perception')
+		self.pub = rospy.Publisher('visualization_marker', Marker , queue_size=100)
+		rospy.Subscriber('robot_0/base_scan', LaserScan, self.callback)
+
+	def callback(self,data):
+		self.model = []
+		self.msg = Marker()
+		obstacle = 0
+		for scan_data in data.ranges:
+			if scan_data < 3:
+				obstacle = 1
+			
+		#Store all points in x = rcos(theta) , y = rsin(theta) format
+		points = []
+		if obstacle == 1:
+			for i in range(0,len(data.ranges)):
+
+				if(data.ranges[i] < 3):
+					curr_point = Point()
+					
+					if( i == 180):
+						curr_point.x = data.ranges[i] 
+						curr_point.y = 0
+					else:
+						curr_point.x = data.ranges[i] * math.sin( i*data.angle_increment )
+						curr_point.y = -data.ranges[i] * math.cos( i*data.angle_increment  )
+	
+					points.append(curr_point)
+
+			'''self.msg.header.frame_id = "base_link"	    
+			self.msg.header.stamp = rospy.Time.now()
+			self.msg.type = Marker.POINTS
+			self.msg.pose.orientation.w = 1.0
+			self.msg.ns= "points_and_lines"
+			self.msg.id = 0
+			self.msg.scale.x = 0.2
+			self.msg.scale.y = 0.2
+			self.msg.color.a = 1.0
+			self.msg.color.g = 1.0
+			#rospy.loginfo("------" + str(len(self.msg.points)))
+			for j in range(0,len(points),10):
+				p = Point()
+				p.x = points[j].x
+				p.y = points[j].y
+				p.z = 0.0
+				self.msg.points.append(p)'''
+
+			#Max iterations for RANSAC
+			max_iter = 100
+			next_point_set = []
+			self.msg.header.frame_id = "base_link"	    
+			self.msg.header.stamp = rospy.Time.now()
+			self.msg.type = Marker.LINE_LIST
+			self.msg.pose.orientation.w = 1.0
+			self.msg.ns= "line_strip"
+			self.msg.id = 1
+			self.msg.scale.x = 0.1
+			self.msg.color.a = 1.0
+			self.msg.color.b = 1.0
+			while len(points) >= 15:
+				self.model = []
+				for k in range(0,max_iter):
+					# Choose two random points 
+					inliers = [] #inliers set
+					outliers = [] #outlier set
+					#rospy.loginfo("-----------" + str(len(points)))
+					point1 = random.randint(0,len(points)- 1)		
+					point2 = random.randint(0,len(points) - 1)
+					slope_line = 0
+					if(points[point2].x - points[point1].x != 0):
+						slope_line = (points[point2].y - points[point1].y) / (points[point2].x - points[point1].x )
+						for j in range(0,len(points)):
+								curr_point_distance = math.fabs((points[j].y + (-slope_line*points[j].x) + (slope_line*points[point1].x) - points[point1].y   ))/ math.sqrt(( 1 + math.pow(slope_line,2)))
+								if(curr_point_distance <= 0.1): #threshold distance for inliers
+									inliers.append(points[j])
+								else:
+									outliers.append(points[j])
+					else:
+						for j in range(0,len(points)):
+								curr_point_distance = math.fabs(points[j].x - points[point1].x)
+								if(curr_point_distance <= 0.1): #threshold distance for inliers
+									inliers.append(points[j])
+								else:
+									outliers.append(points[j])
+										
+					if(len(self.model) < len(inliers)):
+						self.model = inliers
+						self.modelPoint1 = point1
+						self.modelPoint2 = point2
+						next_point_set = outliers
+				maxP = -50000
+				minP = 50000
+				maxPIndex = 0
+				minPIndex = 0
+				for p in range(0,len(self.model)):
+					if self.model[p].x > maxP:
+						maxPIndex = p
+						maxP = self.model[p].x
+					if self.model[p].x < minP:
+						minPIndex = p	
+						minP = self.model[p].x					
+				if len(self.model) != 0 :
+						p = Point()
+						p.x = self.model[maxPIndex].x
+						p.y = self.model[maxPIndex].y
+						p.z = 0.0
+						self.msg.points.append(p)
+						p = Point()
+						p.x = self.model[minPIndex].x
+						p.y = self.model[minPIndex].y
+						p.z = 0.0
+						self.msg.points.append(p)
+				points = next_point_set
+		    	rospy.loginfo("***Total Lines****" + str(len(self.msg.points)/2.0))
+ 	def run(self):
+        	r = rospy.Rate(10)
+		try:
+        		while not rospy.is_shutdown():
+				if len(self.msg.points) != 0 :
+				#rospy.loginfo("*****" + str(len(self.msg.points)))
+        	    			self.pub.publish(self.msg)
+        	    		r.sleep()
+		except rospy.ROSInterruptException:
+			pass
+
+
+if __name__ == '__main__':
+	obj = Perception()
+	obj.run()

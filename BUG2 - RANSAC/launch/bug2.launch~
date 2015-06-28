@@ -1,0 +1,8 @@
+<launch>
+	<node name="stage" pkg="stage_ros" type="stageros"
+	      args="$(find lab2)/world/playground.world" ns="robot_0" />
+
+	<node name="perception" pkg="lab2" type="perception.py"  output="screen" />
+	<node name="bug2" pkg="lab2" type="bug2.py"  output="screen" />
+	<node name="robot0_tf_broadcaster" pkg="lab2" type="tf_broadcaster.py" respawn="false" output="screen" />
+</launch>

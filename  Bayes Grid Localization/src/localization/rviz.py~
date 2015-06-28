@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+import roslib
+import rospy
+import numpy as np
+import rosbag
+import tf
+from visualization_msgs.msg import Marker
+import math
+from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import PointCloud
+import random
+from tf.transformations import euler_from_quaternion
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import Pose2D
+from laser_geometry import LaserProjection
+
+import os
+from nav_msgs.msg import Odometry
+
+class rviz:
+ 	def __init__(self):
+		rospy.init_node('rviz')
+		self.gridCellProbabilites = np.zeros((35,35,36),dtype=np.float64)
+		self.gridCellProbabilites[11,27,20] = 1.0 # 12, 28 , 3
+		self.pub = rospy.Publisher('visualization_marker', Marker , queue_size=100)
+		self.msgRviz = Marker()
+		self.msgRviz.action = Marker.ADD
+		self.pointId = 1
+		self.msgRviz.header.frame_id = "base_link"	    
+		self.msgRviz.header.stamp = rospy.Time.now()
+		self.msgRviz.type = Marker.POINTS
+		self.msgRviz.pose.orientation.w = 1.0
+		self.msgRviz.ns= "line_strip"
+		self.msgRviz.id = self.pointId
+		self.msgRviz.scale.x = 0.2
+		self.msgRviz.scale.x = 0.2
+		self.msgRviz.color.a = 1.0
+		self.msgRviz.color.r = 1.0	
+		p1 = Point()
+		p1.x = 100.0 / 100
+		p1.y = 200.0 /100
+		p1.z = 0
+		p2 = Point()
+		p2.x = 240.0/100
+		p2.y = 100.0/100
+		p2.z = 0
+		self.msgRviz.points.append(p1)
+		self.msgRviz.points.append(p2)
+		self.pub.publish(self.msgRviz)		
+		
+
+	def run(self):
+        	r = rospy.Rate(10)
+		try:
+        		while not rospy.is_shutdown():
+        	    		self.pub.publish(self.msgRviz)
+        	    		r.sleep()
+		except rospy.ROSInterruptException:
+			pass
+
+
+if __name__ == '__main__':
+	obj = rviz()
+	obj.run()
